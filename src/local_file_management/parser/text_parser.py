@@ -3,10 +3,13 @@
 
 def parse_text(path: Path) -> str:
     suffix = path.suffix.lower()
-    if suffix == ".txt" or suffix == ".md":
+    if suffix in {".txt", ".md"}:
         return path.read_text(encoding="utf-8", errors="ignore")
     if suffix == ".pdf":
-        from pypdf import PdfReader
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            return ""
 
         reader = PdfReader(str(path))
         pages = [page.extract_text() or "" for page in reader.pages]
@@ -16,4 +19,3 @@ def parse_text(path: Path) -> str:
 
 def clean_text(text: str) -> str:
     return " ".join(text.replace("\ufeff", " ").split())
-

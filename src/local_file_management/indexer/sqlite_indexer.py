@@ -67,7 +67,6 @@ def upsert_document(conn: sqlite3.Connection, path: str, content: str) -> None:
         """,
         (path, content),
     )
-    conn.commit()
 
 
 def search(conn: sqlite3.Connection, query: str, limit: int = 20) -> list[SearchResult]:

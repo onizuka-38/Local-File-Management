@@ -5,13 +5,17 @@ from pydantic import BaseModel
 
 from local_file_management.config import settings
 from local_file_management.indexer.sqlite_indexer import get_connection, search
-from local_file_management.pipeline import index_local_path
+from local_file_management.pipeline import index_local_path, index_web_url
 
 app = FastAPI(title="Local File Management API")
 
 
 class IndexRequest(BaseModel):
     path: str
+
+
+class WebIndexRequest(BaseModel):
+    url: str
 
 
 class SearchRequest(BaseModel):
@@ -29,6 +33,16 @@ def index_docs(req: IndexRequest) -> dict[str, int]:
     conn = get_connection(settings.db_path)
     try:
         count = index_local_path(conn, Path(req.path))
+    finally:
+        conn.close()
+    return {"indexed": count}
+
+
+@app.post("/index/web")
+def index_web(req: WebIndexRequest) -> dict[str, int]:
+    conn = get_connection(settings.db_path)
+    try:
+        count = index_web_url(conn, req.url)
     finally:
         conn.close()
     return {"indexed": count}

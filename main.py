@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from local_file_management.indexer.sqlite_indexer import get_connection, search
-from local_file_management.pipeline import index_local_path
+from local_file_management.pipeline import index_local_path, index_web_url
 
 
 def cmd_index(args: argparse.Namespace) -> int:
@@ -17,6 +17,16 @@ def cmd_index(args: argparse.Namespace) -> int:
     finally:
         conn.close()
     print(f"Indexed documents: {indexed}")
+    return 0
+
+
+def cmd_index_web(args: argparse.Namespace) -> int:
+    conn = get_connection(Path(args.db))
+    try:
+        indexed = index_web_url(conn, args.url)
+    finally:
+        conn.close()
+    print(f"Indexed web documents: {indexed}")
     return 0
 
 
@@ -41,6 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
     index_parser.add_argument("path", help="Path to scan")
     index_parser.add_argument("--db", default="data/index.db", help="SQLite DB path")
     index_parser.set_defaults(func=cmd_index)
+
+    index_web_parser = subparsers.add_parser("index-web", help="Index a web page URL")
+    index_web_parser.add_argument("url", help="Web page URL")
+    index_web_parser.add_argument("--db", default="data/index.db", help="SQLite DB path")
+    index_web_parser.set_defaults(func=cmd_index_web)
 
     search_parser = subparsers.add_parser("search", help="Search indexed documents")
     search_parser.add_argument("query", help="FTS query")
