@@ -1,8 +1,11 @@
 ﻿from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from pathlib import Path
+
+import requests
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -14,6 +17,9 @@ def cmd_index(args: argparse.Namespace) -> int:
     conn = get_connection(Path(args.db))
     try:
         indexed = index_local_path(conn, Path(args.path))
+    except ValueError as exc:
+        print(str(exc))
+        return 1
     finally:
         conn.close()
     print(f"Indexed documents: {indexed}")
@@ -24,6 +30,12 @@ def cmd_index_web(args: argparse.Namespace) -> int:
     conn = get_connection(Path(args.db))
     try:
         indexed = index_web_url(conn, args.url)
+    except ValueError as exc:
+        print(str(exc))
+        return 1
+    except requests.RequestException as exc:
+        print(f"Failed to fetch URL: {exc}")
+        return 1
     finally:
         conn.close()
     print(f"Indexed web documents: {indexed}")
@@ -34,6 +46,9 @@ def cmd_search(args: argparse.Namespace) -> int:
     conn = get_connection(Path(args.db))
     try:
         results = search(conn, args.query, args.limit)
+    except sqlite3.OperationalError as exc:
+        print(f"Invalid search query: {exc}")
+        return 1
     finally:
         conn.close()
 

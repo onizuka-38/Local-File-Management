@@ -69,7 +69,22 @@ def upsert_document(conn: sqlite3.Connection, path: str, content: str) -> None:
     )
 
 
+def remove_missing_local_documents(conn: sqlite3.Connection, existing_paths: set[str]) -> int:
+    rows = conn.execute(
+        """
+        SELECT path FROM documents
+        WHERE path NOT LIKE 'http://%'
+          AND path NOT LIKE 'https://%'
+        """
+    ).fetchall()
+    stale_paths = [row["path"] for row in rows if row["path"] not in existing_paths]
+    for stale_path in stale_paths:
+        conn.execute("DELETE FROM documents WHERE path = ?", (stale_path,))
+    return len(stale_paths)
+
+
 def search(conn: sqlite3.Connection, query: str, limit: int = 20) -> list[SearchResult]:
+    initialize_db(conn)
     rows = conn.execute(
         """
         SELECT path, content, bm25(documents_fts) AS rank
