@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from local_file_management.config import Settings
 from local_file_management.indexer.sqlite_indexer import get_connection, search
 from local_file_management.pipeline import index_local_path, index_web_url
 
@@ -39,6 +40,49 @@ def test_reindex_removes_deleted_local_files(tmp_path: Path) -> None:
         second = index_local_path(conn, tmp_path)
         assert second == 0
         assert len(search(conn, "temporary", limit=10)) == 0
+    finally:
+        conn.close()
+
+
+def test_hidden_file_is_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    hidden = tmp_path / ".hidden.txt"
+    hidden.write_text("hidden content", encoding="utf-8")
+
+    custom_settings = Settings(
+        db_path=Path("data/index.db"),
+        scan_path=Path("."),
+        max_file_size_mb=20,
+        exclude_hidden=True,
+    )
+    monkeypatch.setattr("local_file_management.pipeline.settings", custom_settings)
+
+    db_path = tmp_path / "index.db"
+    conn = get_connection(db_path)
+    try:
+        indexed = index_local_path(conn, tmp_path)
+        assert indexed == 0
+        assert len(search(conn, "hidden", limit=10)) == 0
+    finally:
+        conn.close()
+
+
+def test_large_file_is_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    big = tmp_path / "big.txt"
+    big.write_text("a" * 2048, encoding="utf-8")
+
+    custom_settings = Settings(
+        db_path=Path("data/index.db"),
+        scan_path=Path("."),
+        max_file_size_mb=0,
+        exclude_hidden=True,
+    )
+    monkeypatch.setattr("local_file_management.pipeline.settings", custom_settings)
+
+    db_path = tmp_path / "index.db"
+    conn = get_connection(db_path)
+    try:
+        indexed = index_local_path(conn, tmp_path)
+        assert indexed == 0
     finally:
         conn.close()
 

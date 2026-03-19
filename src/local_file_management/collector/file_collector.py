@@ -3,7 +3,20 @@
 SUPPORTED_SUFFIXES = {".txt", ".md", ".pdf"}
 
 
-def collect_file_paths(root: Path):
+def _is_hidden(path: Path) -> bool:
+    return any(part.startswith(".") for part in path.parts)
+
+
+def collect_file_paths(root: Path, max_file_size_mb: int = 20, exclude_hidden: bool = True):
+    max_size_bytes = max_file_size_mb * 1024 * 1024
+
     for path in root.rglob("*"):
-        if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES:
-            yield path
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in SUPPORTED_SUFFIXES:
+            continue
+        if exclude_hidden and _is_hidden(path):
+            continue
+        if path.stat().st_size > max_size_bytes:
+            continue
+        yield path

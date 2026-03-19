@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 from local_file_management.collector.file_collector import collect_file_paths
 from local_file_management.collector.web_collector import collect_web_text
+from local_file_management.config import settings
 from local_file_management.indexer.sqlite_indexer import (
     initialize_db,
     remove_missing_local_documents,
@@ -19,18 +20,28 @@ def index_local_path(conn: sqlite3.Connection, root: Path) -> int:
     initialize_db(conn)
     indexed = 0
     existing_paths: set[str] = set()
-    for path in collect_file_paths(root):
-        resolved_path = str(path.resolve())
-        existing_paths.add(resolved_path)
 
-        content = clean_text(parse_text(path))
-        if not content:
-            continue
-        upsert_document(conn, resolved_path, content)
-        indexed += 1
+    try:
+        for path in collect_file_paths(
+            root,
+            max_file_size_mb=settings.max_file_size_mb,
+            exclude_hidden=settings.exclude_hidden,
+        ):
+            resolved_path = str(path.resolve())
+            existing_paths.add(resolved_path)
 
-    remove_missing_local_documents(conn, existing_paths)
-    conn.commit()
+            content = clean_text(parse_text(path))
+            if not content:
+                continue
+            upsert_document(conn, resolved_path, content)
+            indexed += 1
+
+        remove_missing_local_documents(conn, existing_paths)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
     return indexed
 
 
@@ -40,9 +51,15 @@ def index_web_url(conn: sqlite3.Connection, url: str) -> int:
         raise ValueError(f"Invalid URL: {url}")
 
     initialize_db(conn)
-    content = clean_text(collect_web_text(url))
-    if not content:
-        return 0
-    upsert_document(conn, url, content)
-    conn.commit()
+
+    try:
+        content = clean_text(collect_web_text(url))
+        if not content:
+            return 0
+        upsert_document(conn, url, content)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
     return 1

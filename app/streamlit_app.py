@@ -9,20 +9,29 @@ index_path = st.text_input("Index path", value=".")
 web_url = st.text_input("Web URL", value="")
 
 if st.button("Index local path"):
-    response = requests.post(f"{api_base}/index", json={"path": index_path}, timeout=60)
-    response.raise_for_status()
-    st.success(f"Indexed local docs: {response.json()['indexed']}")
+    try:
+        response = requests.post(f"{api_base}/index", json={"path": index_path}, timeout=60)
+        response.raise_for_status()
+        st.success(f"Indexed local docs: {response.json()['indexed']}")
+    except requests.RequestException as exc:
+        st.error(f"Index failed: {exc}")
 
 if st.button("Index web URL") and web_url.strip():
-    response = requests.post(f"{api_base}/index/web", json={"url": web_url}, timeout=60)
-    response.raise_for_status()
-    st.success(f"Indexed web docs: {response.json()['indexed']}")
+    try:
+        response = requests.post(f"{api_base}/index/web", json={"url": web_url}, timeout=60)
+        response.raise_for_status()
+        st.success(f"Indexed web docs: {response.json()['indexed']}")
+    except requests.RequestException as exc:
+        st.error(f"Web index failed: {exc}")
 
 query = st.text_input("Search query")
 if st.button("Search") and query.strip():
-    response = requests.post(f"{api_base}/search", json={"query": query, "limit": 20}, timeout=30)
-    response.raise_for_status()
-    for row in response.json():
-        st.subheader(row["path"])
-        st.caption(f"rank: {row['rank']}")
-        st.write(row["content"])
+    try:
+        response = requests.post(f"{api_base}/search", json={"query": query, "limit": 20}, timeout=30)
+        response.raise_for_status()
+        for row in response.json():
+            st.subheader(row["path"])
+            st.caption(f"rank: {row['rank']}")
+            st.write(row["content"])
+    except requests.RequestException as exc:
+        st.error(f"Search failed: {exc}")

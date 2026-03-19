@@ -15,7 +15,7 @@ def scheduled_index() -> None:
 
 def main() -> None:
     scheduler = BlockingScheduler()
-    scheduler.add_job(scheduled_index, "interval", minutes=30)
+    scheduler.add_job(scheduled_index, "interval", minutes=30, max_instances=1, coalesce=True)
     scheduler.start()
 
 
