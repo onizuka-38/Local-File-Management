@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import pytest
+import requests
 
 from local_file_management.config import Settings
 from local_file_management.indexer.sqlite_indexer import get_connection, search
@@ -53,6 +54,9 @@ def test_hidden_file_is_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         scan_path=Path("."),
         max_file_size_mb=20,
         exclude_hidden=True,
+        web_timeout_sec=10,
+        web_max_retries=2,
+        web_allowed_domains=(),
     )
     monkeypatch.setattr("local_file_management.pipeline.settings", custom_settings)
 
@@ -75,6 +79,9 @@ def test_large_file_is_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         scan_path=Path("."),
         max_file_size_mb=0,
         exclude_hidden=True,
+        web_timeout_sec=10,
+        web_max_retries=2,
+        web_allowed_domains=(),
     )
     monkeypatch.setattr("local_file_management.pipeline.settings", custom_settings)
 
@@ -93,7 +100,7 @@ def test_index_web_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(
         "local_file_management.pipeline.collect_web_text",
-        lambda _url: "web article content for testing",
+        lambda *_args, **_kwargs: "web article content for testing",
     )
 
     try:
@@ -105,6 +112,51 @@ def test_index_web_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         assert results[0].path == "https://example.com/docs"
     finally:
         conn.close()
+
+
+def test_index_web_domain_not_allowed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    custom_settings = Settings(
+        db_path=Path("data/index.db"),
+        scan_path=Path("."),
+        max_file_size_mb=20,
+        exclude_hidden=True,
+        web_timeout_sec=10,
+        web_max_retries=2,
+        web_allowed_domains=("allowed.example",),
+    )
+    monkeypatch.setattr("local_file_management.pipeline.settings", custom_settings)
+
+    db_path = tmp_path / "index.db"
+    conn = get_connection(db_path)
+    try:
+        with pytest.raises(ValueError):
+            index_web_url(conn, "https://blocked.example/page")
+    finally:
+        conn.close()
+
+
+def test_web_collector_retries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls = {"count": 0}
+
+    class DummyResponse:
+        text = "<html><body>retry success text</body></html>"
+
+        def raise_for_status(self) -> None:
+            return None
+
+    def fake_get(_url: str, timeout: int):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise requests.RequestException("temporary")
+        return DummyResponse()
+
+    monkeypatch.setattr("local_file_management.collector.web_collector.requests.get", fake_get)
+
+    from local_file_management.collector.web_collector import collect_web_text
+
+    text = collect_web_text("https://example.com", timeout=1, max_retries=2)
+    assert "retry success text" in text
+    assert calls["count"] == 3
 
 
 def test_index_local_invalid_path(tmp_path: Path) -> None:

@@ -50,10 +50,19 @@ def index_web_url(conn: sqlite3.Connection, url: str) -> int:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError(f"Invalid URL: {url}")
 
+    if settings.web_allowed_domains and parsed.netloc.lower() not in settings.web_allowed_domains:
+        raise ValueError(f"Domain not allowed: {parsed.netloc}")
+
     initialize_db(conn)
 
     try:
-        content = clean_text(collect_web_text(url))
+        content = clean_text(
+            collect_web_text(
+                url,
+                timeout=settings.web_timeout_sec,
+                max_retries=settings.web_max_retries,
+            )
+        )
         if not content:
             return 0
         upsert_document(conn, url, content)
